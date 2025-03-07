@@ -18,79 +18,99 @@ public class Database extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
-        String qry1 = "create table users(username text,email text, password text)";
+        // Create users table
+        String qry1 = "CREATE TABLE users(username TEXT PRIMARY KEY, email TEXT, password TEXT, role TEXT)";
         sqLiteDatabase.execSQL(qry1);
 
-        String qry2 = "create table cart(username text,product text, price float,otype text)";
+        // Create cart table
+        String qry2 = "CREATE TABLE cart(username TEXT, product TEXT, price FLOAT, otype TEXT)";
         sqLiteDatabase.execSQL(qry2);
 
-        String qry3 = "create table orderPlace(username text,fullname text, address text,contact text,pincode int,date text,time text,amount float,otype text)";
+        // Create order table
+        String qry3 = "CREATE TABLE orderPlace(username TEXT, fullname TEXT, address TEXT, contact TEXT, pincode INT, date TEXT, time TEXT, amount FLOAT, otype TEXT)";
         sqLiteDatabase.execSQL(qry3);
 
+        // Insert default admin
+        String adminInsert = "INSERT INTO users (username, email, password, role) VALUES ('admin', 'admin@example.com', 'admin123', 'admin')";
+        sqLiteDatabase.execSQL(adminInsert);
     }
 
     @Override
-    public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < newVersion) {
+            db.execSQL("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+        }
+    }
 
-    }
-    public void register(String username,String email,String password){
+    // Register a new user with a default role "user"
+    public void register(String username, String email, String password) {
         ContentValues cv = new ContentValues();
-        cv.put("username",username);
-        cv.put("email",email);
-        cv.put("password",password);
+        cv.put("username", username);
+        cv.put("email", email);
+        cv.put("password", password);
+        cv.put("role", "user"); // Default role for new users
+
         SQLiteDatabase db = getWritableDatabase();
-        db.insert("users",null,cv);
-        db.close();
-    }
-    public int login(String username,String password){
-        int result = 0;
-        String str[]=new String [2];
-        str[0] = username;
-        str[1]= password;
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("select * from users where username=? and password=?",str);
-        if(c.moveToFirst()){
-            result=1;
-        }
-        return result;
-    }
-    public void addCart(String username,String product,float price,String otype){
-        ContentValues cv = new ContentValues();
-        cv.put("username",username);
-        cv.put("product",product);
-        cv.put("price",price);
-        cv.put("otype",otype);
-        SQLiteDatabase db = getWritableDatabase();
-        db.insert("cart",null,cv);
-        db.close();
-    }
-    public int checkCart(String username,String product){
-        int result = 0;
-        String str[]=new String [2];
-        str[0] = username;
-        str[1]= product;
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery("select * from cart where username=? and product=?",str);
-        if(c.moveToFirst()){
-            result=1;
-        }
-        return result;
-    }
-    public void removeCart(String username,String otype){
-        String str[] = new String[2];
-        str[0] = username;
-        str[1] = otype;
-        SQLiteDatabase db = getWritableDatabase();
-        db.delete("cart","username =? and otype=?",str);
+        db.insert("users", null, cv);
         db.close();
     }
 
-    public ArrayList getCartData(String username, String otype) {
+    // Login method that returns role
+    public String login(String username, String password) {
+        String role = "";
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT role FROM users WHERE username=? AND password=?", new String[]{username, password});
+
+        if (c.moveToFirst()) {
+            role = c.getString(0);
+        }
+
+        c.close(); // Close cursor
+        db.close(); // Close database connection
+        return role;
+    }
+
+    // Add item to cart
+    public void addCart(String username, String product, float price, String otype) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put("username", username);
+        cv.put("product", product);
+        cv.put("price", price);
+        cv.put("otype", otype);
+
+        db.insert("cart", null, cv);
+        db.close();
+    }
+
+    // Check if item exists in cart
+    public int checkCart(String username, String product) {
+        int result = 0;
+        String[] str = {username, product};
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT * FROM cart WHERE username=? AND product=?", str);
+
+        if (c.moveToFirst()) {
+            result = 1; // Product is already in cart
+        }
+
+        c.close(); // Close cursor
+        db.close(); // Close database connection
+        return result;
+    }
+
+    // Remove items from cart
+    public void removeCart(String username, String otype) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete("cart", "username = ? AND otype = ?", new String[]{username, otype});
+        db.close();
+    }
+
+    // Retrieve cart data
+    public ArrayList<String> getCartData(String username, String otype) {
         ArrayList<String> arr = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
-        String str[] = new String[2];
-        str[0] = username;
-        str[1] = otype;
+        String[] str = {username, otype};
 
         Cursor c = db.rawQuery("SELECT * FROM cart WHERE username = ? AND otype = ?", str);
         if (c.moveToFirst()) {
@@ -101,9 +121,12 @@ public class Database extends SQLiteOpenHelper {
             } while (c.moveToNext());
         }
 
-        db.close();
+        c.close(); // Close cursor
+        db.close(); // Close database connection
         return arr;
     }
+
+    // Add new order
     public void addOrder(String username, String fullname, String address, String contact, int pincode, String date, String time, float price, String otype) {
         ContentValues cv = new ContentValues();
         cv.put("username", username);
@@ -117,49 +140,78 @@ public class Database extends SQLiteOpenHelper {
         cv.put("otype", otype);
 
         SQLiteDatabase db = getWritableDatabase();
-        db.insert("orderplace", null, cv);
+        db.insert("orderPlace", null, cv);
         db.close();
     }
 
-        public ArrayList getOrderData(String username){
-            ArrayList<String> arr = new ArrayList<>();
-            SQLiteDatabase db = getReadableDatabase();
-            String str[] = new String[1];
-            str[0] = username;
+    // Retrieve orders of a user
+    public ArrayList<String> getOrderData(String username) {
+        ArrayList<String> arr = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        String[] str = {username};
 
-            Cursor c = db.rawQuery("select * from orderplace where username = ?", str);
-            if(c.moveToFirst()){
-                do{
-                    arr.add(c.getString(1) + "$" + c.getString(2) + "$" + c.getString(3) + "$" + c.getString(4) + "$" + c.getString(5)+ "$" + c.getString(6)+ "$" + c.getString(7)+ "$" + c.getString(8));
-
-                } while(c.moveToNext());
-            }
-
-            db.close();
-            return arr;
+        Cursor c = db.rawQuery("SELECT * FROM orderPlace WHERE username = ?", str);
+        if (c.moveToFirst()) {
+            do {
+                arr.add(c.getString(1) + "$" + c.getString(2) + "$" + c.getString(3) + "$" + c.getString(4) + "$" +
+                        c.getString(5) + "$" + c.getString(6) + "$" + c.getString(7) + "$" + c.getString(8));
+            } while (c.moveToNext());
         }
-        public int checkAppointmentExists(String username,String fullname,String address,String contact, String date,String time){
-            int result = 0;
-            String str[] = new String[6];
-            str[0] = username;
-            str[1] = fullname;
-            str[2] = address;
-            str[3] = contact;
-            str[4] = date;
-            str[5] = time;
 
-            SQLiteDatabase db = getReadableDatabase();
-            Cursor c = db.rawQuery("SELECT * FROM orderplace WHERE username = ? AND fullname = ? AND address = ? AND contact = ? AND date = ? AND time = ? ",str);
-
-
-            if (c.moveToFirst()) {
-                result = 1;
-            }
-
-            db.close();
-            return result;
-
-        }
+        c.close(); // Close cursor
+        db.close(); // Close database connection
+        return arr;
     }
 
+    // Check if an appointment already exists
+    public int checkAppointmentExists(String username, String fullname, String address, String contact, String date, String time) {
+        int result = 0;
+        String[] str = {username, fullname, address, contact, date, time};
 
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT * FROM orderPlace WHERE username = ? AND fullname = ? AND address = ? AND contact = ? AND date = ? AND time = ?", str);
+
+        if (c.moveToFirst()) {
+            result = 1; // Appointment already exists
+        }
+
+        c.close(); // Close cursor
+        db.close(); // Close database connection
+        return result;
+    }
+
+    // Retrieve all users (for admin panel)
+    public Cursor getUsers() {
+        SQLiteDatabase db = getReadableDatabase();
+        return db.rawQuery("SELECT username, email FROM users WHERE role = 'user'", null);
+    }
+
+    // Delete user (for admin panel)
+    public void deleteUser(String username) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete("users", "username=?", new String[]{username});
+        db.close();
+    }
+//    public void updateUser(String username, String email, String password) {
+//        SQLiteDatabase db = getWritableDatabase();
+//        ContentValues cv = new ContentValues();
+//        cv.put("email", email);
+//        cv.put("password", password);
+//
+//        db.update("users", cv, "username=?", new String[]{username});
+//        db.close();
+//    }
+//    public Cursor getUserDetails(String username) {
+//        SQLiteDatabase db = getReadableDatabase();
+//        return db.rawQuery("SELECT username, email, password FROM users WHERE username=?", new String[]{username});
+//    }
+public void updateUser(String oldUsername, String newUsername, String newEmail) {
+    ContentValues cv = new ContentValues();
+    cv.put("username", newUsername);
+    cv.put("email", newEmail);
+
+    SQLiteDatabase db = getWritableDatabase();
+    db.update("users", cv, "username = ?", new String[]{oldUsername});
+    db.close();
+}
+}
